@@ -1,0 +1,15 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mermra}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mermra_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-mermra_exam}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
