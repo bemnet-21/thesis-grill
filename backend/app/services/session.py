@@ -92,6 +92,24 @@ def get_next_category(session: Session, db: DBSession) -> str | None:
     return None  # All categories covered
 
 
+# ── Language steering ─────────────────────────────────────────────────────────
+
+_LANGUAGE_INSTRUCTIONS = {
+    "am": (
+        "IMPORTANT: You MUST output your entire response in Amharic (አማርኛ). "
+        "Use the Amharic script exclusively. Do not mix in English."
+    ),
+    "en": (
+        "Output your response in English."
+    ),
+}
+
+
+def _lang_instruction(language: str) -> str:
+    """Return the LLM language-steering instruction for the given session language."""
+    return _LANGUAGE_INSTRUCTIONS.get(language, _LANGUAGE_INSTRUCTIONS["en"])
+
+
 # ── Question generation ───────────────────────────────────────────────────────
 
 
@@ -135,14 +153,18 @@ def generate_question(
         for q in prior_questions
     )
 
-    # 5. Compose question via LLM
+    # 5. Compose question via LLM — spoken-conversational style + language steering
+    lang_inst = _lang_instruction(session.language)
     system_prompt = (
-        "You are a thesis defense examiner. Generate a single, clear, spoken-appropriate "
-        "question for the student to answer orally. The question should test understanding "
-        "and critical thinking about their thesis."
+        "You are a thesis defense examiner conducting a live oral examination. "
+        "Generate a single, clear question that sounds natural when spoken aloud — "
+        "as if you are talking directly to the student across a table. "
+        "Avoid written-text conventions like bullet points, numbering, or overly formal phrasing. "
+        "The question should test understanding and critical thinking about their thesis.\n\n"
+        f"{lang_inst}"
     )
     user_prompt = f"""Rubric category: {category}
-{"This is a FOLLOW-UP probe — the student's previous answer was weak. Ask a more pointed question." if is_followup else ""}
+{"This is a FOLLOW-UP probe — the student's previous answer was weak. Ask a sharper, more challenging question that digs deeper into the same topic. Reference what they said before and press harder." if is_followup else ""}
 
 Thesis context:
 {context_text}
@@ -239,6 +261,63 @@ Evaluate and return JSON only."""
     db.commit()
     db.refresh(answer)
     return answer
+
+
+# ── Hint generation ───────────────────────────────────────────────────────────
+
+
+def generate_hint(
+    session: Session, db: DBSession
+) -> str:
+    """Generate a small spoken hint for the current unanswered question."""
+    # Find the most recent unanswered question
+    question = (
+        db.query(Question)
+        .filter(Question.session_id == session.id, Question.answer == None)  # noqa: E711
+        .order_by(Question.sequence_number.desc())
+        .first()
+    )
+    if question is None:
+        return "You've already answered all the questions so far."
+
+    # Retrieve context for the hint
+    context_chunks = retrieve(session.thesis_id, question.rubric_category, db, k=3)
+    context_text = "\n\n".join(context_chunks) if context_chunks else "(no context)"
+
+    lang_inst = _lang_instruction(session.language)
+    system_prompt = (
+        "You are a supportive thesis defense coach. The student is stuck on an oral exam question. "
+        "Give a brief, spoken-style hint — one or two sentences — that nudges them toward the right "
+        "direction without revealing the full answer. Sound encouraging and natural.\n\n"
+        f"{lang_inst}"
+    )
+    user_prompt = f"""The question is: {question.text}
+
+Relevant thesis context:
+{context_text}
+
+Provide a short hint."""
+
+    client = _get_openai()
+    response = client.chat.completions.create(
+        model=settings.LLM_MODEL,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        temperature=0.6,
+        max_tokens=150,
+    )
+    return response.choices[0].message.content.strip()
+
+
+# ── Session end ───────────────────────────────────────────────────────────────
+
+
+def end_session(session: Session, db: DBSession) -> SessionReport:
+    """Mark the session completed and trigger early report generation."""
+    report = generate_report(session.id, db)
+    return report
 
 
 # ── Report generation ─────────────────────────────────────────────────────────

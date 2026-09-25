@@ -10,6 +10,7 @@ from app.models import Question, Session
 from app.schemas.sessions import (
     AnswerRequest,
     AnswerResponse,
+    HintResponse,
     QuestionResponse,
     SessionCreateRequest,
     SessionCreateResponse,
@@ -17,6 +18,8 @@ from app.schemas.sessions import (
 )
 from app.services.session import (
     create_session,
+    end_session,
+    generate_hint,
     generate_question,
     generate_report,
     get_next_category,
@@ -91,6 +94,40 @@ def submit_answer(
 
     answer = grade_answer(question.id, body.transcript, db)
     return answer
+
+
+@router.get("/{session_id}/hint", response_model=HintResponse)
+def request_hint(
+    session_id: uuid.UUID,
+    db: DBSession = Depends(get_db),
+):
+    """Generate a spoken hint for the current unanswered question."""
+    session = db.get(Session, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session.status != "in_progress":
+        raise HTTPException(status_code=400, detail="Session is not in progress")
+
+    hint_text = generate_hint(session, db)
+    return HintResponse(text=hint_text)
+
+
+@router.post("/{session_id}/end", response_model=SessionReportResponse)
+def end_session_endpoint(
+    session_id: uuid.UUID,
+    db: DBSession = Depends(get_db),
+):
+    """End the session early and generate the report."""
+    session = db.get(Session, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session.status != "in_progress":
+        raise HTTPException(status_code=400, detail="Session is not in progress")
+
+    report = end_session(session, db)
+    return report
 
 
 @router.get("/{session_id}/report", response_model=SessionReportResponse)

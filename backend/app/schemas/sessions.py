@@ -44,6 +44,10 @@ class AnswerResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class HintResponse(BaseModel):
+    text: str
+
+
 class SessionReportResponse(BaseModel):
     overall_score: int
     per_category_breakdown: dict[str, Any] | None = None
