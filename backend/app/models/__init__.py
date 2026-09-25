@@ -85,7 +85,7 @@ class ThesisChunk(Base):
     )
     section_label: Mapped[str | None] = mapped_column(String(255))
     text: Mapped[str] = mapped_column(Text, nullable=False)
-    embedding = mapped_column(Vector(1536))  # OpenAI ada-002 dimension
+    embedding = mapped_column(Vector(1024))  # Voyage dimension
 
     thesis: Mapped["Thesis"] = relationship(back_populates="chunks")
 
