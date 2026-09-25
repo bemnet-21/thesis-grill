@@ -26,8 +26,14 @@ def fetch_related_papers(query: str, limit: int = 3) -> list[dict]:
     try:
         resp = httpx.get(url, headers=headers, params=params, timeout=10)
         resp.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 429:
+            logger.warning("ScholarXIV rate-limited (429) — falling back to thesis-only context")
+        else:
+            logger.exception("ScholarXIV API returned %s", exc.response.status_code)
+        return []
     except httpx.HTTPError:
-        logger.exception("ScholarXIV API request failed")
+        logger.exception("ScholarXIV API request failed (network/timeout)")
         return []
 
     papers = resp.json().get("data", [])

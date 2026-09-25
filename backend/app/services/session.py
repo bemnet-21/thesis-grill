@@ -119,7 +119,18 @@ def generate_question(
     """Generate a rubric-based question using RAG context and LLM."""
     # 1. Retrieve thesis context for this category
     context_chunks = retrieve(session.thesis_id, category, db, k=4)
-    context_text = "\n\n---\n\n".join(context_chunks) if context_chunks else "(no context available)"
+    if context_chunks:
+        context_text = "\n\n---\n\n".join(context_chunks)
+    else:
+        # Fallback: use thesis abstract or general rubric principles
+        thesis = db.get(Thesis, session.thesis_id)
+        abstract = thesis.abstract if thesis and thesis.abstract else ""
+        if abstract:
+            logger.warning("Empty retrieval for session %s — falling back to thesis abstract", session.id)
+            context_text = f"(No specific chunks matched. Thesis abstract below.)\n\n{abstract}"
+        else:
+            logger.warning("Empty retrieval for session %s — using general rubric fallback", session.id)
+            context_text = f"(No thesis context available. Ask a general question about {category} principles.)"
 
     # 2. Conditionally fetch related papers for "Related Work"
     scholarxiv_snippets = ""

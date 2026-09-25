@@ -1,5 +1,7 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
+from app.core.config import settings
 from app.routers import sessions_router, theses_router, users_router
 
 DESCRIPTION = """\
@@ -24,6 +26,14 @@ app = FastAPI(
     ],
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(users_router)
 app.include_router(theses_router)
 app.include_router(sessions_router)
@@ -32,3 +42,4 @@ app.include_router(sessions_router)
 @app.get("/health")
 def health():
     return {"status": "ok"}
+

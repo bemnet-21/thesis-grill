@@ -29,7 +29,12 @@ class Settings(BaseSettings):
     S3_PREFIX: str = "theses/"
     AWS_REGION: str = "us-east-1"
 
+    # CORS — comma-separated origins (parsed in main.py)
+    ALLOWED_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+
     # Voice service (Phase 2)
+    # NOTE: Before deploying to EthioDeploy, lock the Voxide publishable key
+    # to the production domain in the Voxide dashboard → Settings → Allowed Domains.
     VOXIDE_PUBLISHABLE_KEY: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
