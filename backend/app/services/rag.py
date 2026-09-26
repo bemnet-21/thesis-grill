@@ -6,11 +6,13 @@ import uuid
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_voyageai import VoyageAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+import os
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models import Thesis, ThesisChunk
+from app.services.storage import download_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +40,13 @@ def ingest_thesis(thesis_id: uuid.UUID, pdf_path: str, db: Session) -> None:
         logger.error("Thesis %s not found", thesis_id)
         return
 
+    local_pdf_path = None
     try:
+        # 0. Download PDF if needed
+        local_pdf_path = download_pdf(pdf_path)
+
         # 1. Load PDF
-        loader = PyPDFLoader(pdf_path)
+        loader = PyPDFLoader(local_pdf_path)
         pages = loader.load()
 
         # 2. Split into chunks (target 500-800 tokens, ~600 avg)
@@ -81,6 +87,13 @@ def ingest_thesis(thesis_id: uuid.UUID, pdf_path: str, db: Session) -> None:
         logger.exception("Ingestion failed for thesis %s", thesis_id)
         thesis.ingestion_status = "failed"
         db.commit()
+    finally:
+        # Clean up temporary file if it was downloaded from S3
+        if local_pdf_path and local_pdf_path != pdf_path:
+            try:
+                os.remove(local_pdf_path)
+            except OSError:
+                logger.warning("Failed to remove temporary PDF file: %s", local_pdf_path)
 
 
 def retrieve(
