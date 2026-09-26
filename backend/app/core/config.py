@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     # S3 settings (used when UPLOAD_BACKEND=s3)
     S3_BUCKET: str = ""
     S3_PREFIX: str = "theses/"
+    S3_ENDPOINT_URL: str = ""
     AWS_REGION: str = "us-east-1"
 
     # CORS — comma-separated origins (parsed in main.py)
