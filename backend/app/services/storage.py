@@ -23,9 +23,15 @@ def _save_to_local(filename: str, content: bytes) -> str:
 
 def _save_to_s3(filename: str, content: bytes) -> str:
     import boto3
+    from botocore.config import Config
 
     endpoint = settings.S3_ENDPOINT_URL or None
-    s3 = boto3.client("s3", region_name=settings.AWS_REGION, endpoint_url=endpoint)
+    s3 = boto3.client(
+        "s3",
+        region_name=settings.AWS_REGION,
+        endpoint_url=endpoint,
+        config=Config(s3={"addressing_style": "path"}),
+    )
     key = f"{settings.S3_PREFIX}{filename}"
     s3.put_object(Bucket=settings.S3_BUCKET, Key=key, Body=content)
     return f"s3://{settings.S3_BUCKET}/{key}"
